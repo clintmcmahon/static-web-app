@@ -4,6 +4,7 @@ using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 using System;
 using System.IO;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -21,43 +22,50 @@ namespace StaticWebApp.Test
         [Function("NonceInjector")]
         public async Task<IActionResult> Run([HttpTrigger(AuthorizationLevel.Function, "get", "post")] HttpRequest req)
         {
+            var nonce = GenerateNonce();
             _logger.LogInformation("C# HTTP trigger function processed a request.");
 
             // Define the path to the index.html in the "angular-basic" folder
             string functionDirectory = Directory.GetCurrentDirectory();
-            string indexPath = Path.Combine(functionDirectory, "angular-basic", "index.html");
+            string filePath = Path.Combine(functionDirectory, "angular-basic", "index.html");
 
-            // Check if the file exists
-            if (!File.Exists(indexPath))
-            {
-                _logger.LogError($"File not found: {indexPath}");
-                return new NotFoundObjectResult($"File not found: {indexPath}");
-            }
 
-            // Read the contents of the index.html
             string htmlContent;
-            using (StreamReader reader = new StreamReader(indexPath))
+
+            if (File.Exists(filePath))
             {
-                htmlContent = await reader.ReadToEndAsync();
+                htmlContent = await File.ReadAllTextAsync(filePath);
+            }
+            else
+            {
+                return new NotFoundObjectResult("Index file not found.");
             }
 
-            // Generate a nonce (random value)
-            string nonce = Convert.ToBase64String(Guid.NewGuid().ToByteArray()).Substring(0, 16);
+            // Replace nonce placeholder in the HTML file
+            htmlContent = htmlContent.Replace("DYNAMIC_NONCE_VALUE", nonce);
 
-            // Inject the nonce into <script> tags or other necessary places
-            // Example: add 'nonce' to all <script> tags
-            string updatedHtmlContent = htmlContent.Replace("<script", $"<script nonce=\"{nonce}\"");
+            // Add the CSP header with the nonce value
+            var result = new ContentResult
+            {
+                Content = htmlContent,
+                ContentType = "text/html",
+            };
 
-            // You can also update CSP headers, inline styles, or other elements if needed
+            req.HttpContext.Response.Headers.Add("Content-Security-Policy", $"script-src 'self' 'nonce-{nonce}'");
 
-            // Optionally, write the updated file back to the original location
-            // using (StreamWriter writer = new StreamWriter(indexPath, false, Encoding.UTF8))
-            // {
-            //     await writer.WriteAsync(updatedHtmlContent);
-            // }
+            return result;
+        }
 
-            // Return the updated content (or simply save it as shown above)
-            return new OkObjectResult(updatedHtmlContent);
+        private static string GenerateNonce()
+        {
+            byte[] nonceBytes = new byte[16];
+            using (var rng = RandomNumberGenerator.Create())
+            {
+                rng.GetBytes(nonceBytes);
+            }
+
+            // Convert to Base64 for a URL-safe nonce
+            return Convert.ToBase64String(nonceBytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
         }
     }
 }
