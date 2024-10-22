@@ -16,7 +16,7 @@
     <PackageReference Include="Microsoft.Azure.Functions.Worker.Sdk" Version="2.0.0-preview2" />
   </ItemGroup>
   <ItemGroup>
-  <Content Update="angular-basic\**\*.*">
+  <None Update="angular-basic\**\*.*">
     <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
   </Content>
