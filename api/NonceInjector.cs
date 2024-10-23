@@ -4,8 +4,7 @@ using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 using System;
 using System.IO;
-using System.Security.Cryptography;
-using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace StaticWebApp.Test
@@ -22,50 +21,47 @@ namespace StaticWebApp.Test
         [Function("NonceInjector")]
         public async Task<IActionResult> Run([HttpTrigger(AuthorizationLevel.Function, "get", "post")] HttpRequest req)
         {
-            var nonce = GenerateNonce();
             _logger.LogInformation("C# HTTP trigger function processed a request.");
 
             // Define the path to the index.html in the "angular-basic" folder
             string functionDirectory = Directory.GetCurrentDirectory();
-            string filePath = Path.Combine(functionDirectory, "angular-basic", "index.html");
+            string indexPath = Path.Combine(functionDirectory, "angular-basic", "index.html");
 
+            // Check if the file exists
+            if (!File.Exists(indexPath))
+            {
+                _logger.LogError($"File not found: {indexPath}");
+                return new NotFoundObjectResult($"File not found: {indexPath}");
+            }
 
+            // Read the contents of the index.html
             string htmlContent;
-
-            if (File.Exists(filePath))
+            using (StreamReader reader = new StreamReader(indexPath))
             {
-                htmlContent = await File.ReadAllTextAsync(filePath);
-            }
-            else
-            {
-                return new NotFoundObjectResult("Index file not found.");
+                htmlContent = await reader.ReadToEndAsync();
             }
 
-            // Replace nonce placeholder in the HTML file
-            htmlContent = htmlContent.Replace("CSP_NONCE", nonce);
+            // Generate a nonce (random value)
+            string nonce = Convert.ToBase64String(Guid.NewGuid().ToByteArray()).Substring(0, 16);
 
-            // Add the CSP header with the nonce value
-            var result = new ContentResult
+            // Replace the CSP_NONCE placeholder in index.html with the generated nonce
+            string updatedHtmlContent = htmlContent.Replace("{{CSP_NONCE}}", nonce);
+
+            // Inject nonce into all <script> tags using a regex
+            string scriptPattern = @"<script\s*";
+            updatedHtmlContent = Regex.Replace(updatedHtmlContent, scriptPattern, $"<script nonce=\"{nonce}\" ", RegexOptions.IgnoreCase);
+
+            // Set the CSP header to allow inline scripts with the generated nonce
+            var headers = req.HttpContext.Response.Headers;
+            headers.Add("Content-Security-Policy", $"default-src 'self'; script-src 'nonce-{nonce}' 'self'; style-src 'nonce-{nonce}' 'self';");
+
+            // Return the updated HTML content
+            return new ContentResult
             {
-                Content = htmlContent,
+                Content = updatedHtmlContent,
                 ContentType = "text/html",
+                StatusCode = StatusCodes.Status200OK
             };
-
-            req.HttpContext.Response.Headers.Add("Content-Security-Policy", $"script-src 'self' 'nonce-{nonce}'");
-
-            return result;
-        }
-
-        private static string GenerateNonce()
-        {
-            byte[] nonceBytes = new byte[16];
-            using (var rng = RandomNumberGenerator.Create())
-            {
-                rng.GetBytes(nonceBytes);
-            }
-
-            // Convert to Base64 for a URL-safe nonce
-            return Convert.ToBase64String(nonceBytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
         }
     }
 }
