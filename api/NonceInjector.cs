@@ -45,7 +45,7 @@ namespace StaticWebApp.Test
             string nonce = Convert.ToBase64String(Guid.NewGuid().ToByteArray()).Substring(0, 16);
 
             // Replace the CSP_NONCE placeholder in index.html with the generated nonce
-            string updatedHtmlContent = htmlContent.Replace("{{CSP_NONCE}}", nonce);
+            string updatedHtmlContent = htmlContent.Replace("CSP_NONCE", nonce);
 
             // Inject nonce into all <script> tags using a regex
             string scriptPattern = @"<script\s*";
