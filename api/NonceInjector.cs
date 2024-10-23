@@ -42,7 +42,7 @@ namespace StaticWebApp.Test
             }
 
             // Replace nonce placeholder in the HTML file
-            htmlContent = htmlContent.Replace("DYNAMIC_NONCE_VALUE", nonce);
+            htmlContent = htmlContent.Replace("CSP_NONCE", nonce);
 
             // Add the CSP header with the nonce value
             var result = new ContentResult
