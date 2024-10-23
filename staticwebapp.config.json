@@ -3,10 +3,6 @@
     {
       "route": "/",
       "rewrite": "/api/nonceInject"
-    },
-    {
-      "route": "/{*all}",
-      "serve": "/index.html"
     }
   ]
 }
