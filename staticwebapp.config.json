@@ -1,5 +1,12 @@
 {
-    "navigationFallback": {
-        "rewrite": "/index.html"
+  "routes": [
+    {
+      "route": "/",
+      "rewrite": "/api/nonceInject"
+    },
+    {
+      "route": "/{*all}",
+      "serve": "/index.html"
     }
+  ]
 }
